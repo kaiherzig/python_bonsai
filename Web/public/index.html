@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pflanzenüberwachung Dashboard</title>
+<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAARVBMVEUAAAD///////////////////////////////////////////////////////////////////+or6aq6urz8/fn5+e7u7u9vb3+/v7T09Pq6uq8vLzNzc3Pz8+fn5/Hx8ezs7Nw2HwQAAAACXRSTlMAQMGCAwMEBQYLCww8I5HRsAAABvSURBVBjTY2CgCjQwYGBkYGBoYFxcWBgYGJjY2NjY2BgYGLi4uPj4+Pj4ODg4OHi4ubm5uDg4OHh4eHh4+Pk5OTk5OTh4eHj4+Pn5+fo6Ojo6Onp6erq6+zs7O3t7e7v7/Dx8fLz9PX29/j5+fv7+/v7+/vz8/Pz8+Pj7+/v///xRIBP9soAvfpAAAAAElFTkSuQmCC" />
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Chart.js, Luxon und Chart.js Adapter für Luxon -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1"></script>
+  <style>
+    /* Globaler Stil */
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: linear-gradient(135deg, #ece9e6, #ffffff);
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    /* Container als Karte */
+    .content-container {
+      max-width: 1200px;
+      margin: auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 30px;
+    }
+    .table-scroll {
+      overflow-x: auto;
+    }
+    header {
+      text-align: center;
+      font-size: 2rem;
+      color: #2e7d32;
+      margin-bottom: 20px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 2.5rem;
+      color: #2e7d32;
+      margin-bottom: 20px;
+    }
+    h2 {
+      text-align: center;
+      font-size: 1.75rem;
+      color: #2e7d32;
+      margin-bottom: 15px;
+    }
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .filters div {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .filters label {
+      font-weight: 500;
+      margin-bottom: 5px;
+    }
+    .filters select {
+      padding: 8px 12px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fafafa;
+      outline: none;
+      transition: border 0.3s ease;
+    }
+    .filters select:focus {
+      border-color: #2e7d32;
+    }
+    #pumpStatusSection {
+      background: #e8f5e9;
+      border: 1px solid #c8e6c9;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 30px;
+    }
+    th, td {
+      padding: 12px 15px;
+      border: 1px solid #ddd;
+      text-align: center;
+      cursor: pointer;
+    }
+    th {
+      background-color: #2e7d32;
+      color: #fff;
+      font-weight: 500;
+    }
+    tbody tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+    canvas {
+      background: #f4f4f4;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 30px;
+    }
+    @media (max-width: 600px) {
+      table {
+        font-size: 14px;
+      }
+      td, th {
+        padding: 5px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="content-container">
+    <header>🌿 Pflanzenüberwachung</header>
+    
+    <!-- Pumpenstatus -->
+    <div id="pumpStatusSection">
+      <h2>🚰 Pumpenstatus</h2>
+      <div id="pumpStatus">Lade Pumpenstatus …</div>
+    </div>
+    
+    <!-- Filter: Sensor (Pflanze) und Zeitraum -->
+    <div class="filters">
+      <div>
+        <label for="sensor">Pflanze:</label>
+        <select id="sensor">
+          <!-- Optionen werden dynamisch geladen -->
+        </select>
+      </div>
+      <div>
+        <label for="zeitraum">Zeitraum:</label>
+        <select id="zeitraum">
+          <option value="30 MINUTE">Letzte 30 Minuten</option>
+          <option value="1 HOUR">Letzte 1 Stunde</option>
+          <option value="6 HOUR" selected>Letzte 6 Stunden</option>
+          <option value="1 DAY">Letzter Tag</option>
+          <option value="7 DAY">Letzte 7 Tage</option>
+          <option value="14 DAY">Letzte 14 Tage</option>
+          <option value="30 DAY">Letzte 30 Tage</option>
+          <option value="180 DAY">Letzte 180 Tage</option>
+        </select>
+      </div>
+    </div>
+    
+    <!-- Tabelle mit den letzten Messwerten -->
+    <div class="table-scroll">
+      <h2>📋 Letzte Messwerte</h2>
+      <table id="latest-table">
+        <thead>
+          <tr>
+            <th data-type="string">Sensor</th>
+            <th data-type="string">Zimmer</th>
+            <th data-type="number">Feuchtigkeit (%)</th>
+            <th data-type="number">Temperatur (°C)</th>
+            <th data-type="number">Licht (lux)</th>
+            <th data-type="number">Fruchtbarkeit (µS/cm)</th>
+            <th data-type="number">Batterie (%)</th>
+            <th data-type="string">Letzte Messung</th>
+            <th data-type="number">Anzahl der Daten</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Datenzeilen werden dynamisch eingefügt -->
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- Diagramme -->
+    <h2>📊 Sensordaten</h2>
+    <canvas id="moistureChart"></canvas>
+    <canvas id="temperatureChart"></canvas>
+    <canvas id="lightChart"></canvas>
+    <canvas id="conductivityChart"></canvas>
+    <canvas id="batteryChart"></canvas>
+  </div>
+  
+  <!-- Hauptscript als Modul -->
+  <script type="module">
+    // Hilfsfunktion: Wandelt einen Hex-Farbcode in RGBA um
+    function hexToRGBA(hex, alpha) {
+      hex = hex.replace('#','');
+      if (hex.length === 3) {
+        hex = hex.split('').map(c => c + c).join('');
+      }
+      const r = parseInt(hex.substring(0,2), 16);
+      const g = parseInt(hex.substring(2,4), 16);
+      const b = parseInt(hex.substring(4,6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    
+    // Sensoren laden aus /api/sensors (Metadaten)
+async function loadSensors() {
+  try {
+    const response = await fetch('/api/sensors');
+    const sensors = await response.json();
+    const sensorSelect = document.getElementById('sensor');
+    sensorSelect.innerHTML = "";
+    // Option "Alle" hinzufügen
+    const optionAll = document.createElement('option');
+    optionAll.value = "Alle";
+    optionAll.textContent = "Alle";
+    sensorSelect.appendChild(optionAll);
+    sensors.forEach(sensor => {
+      const option = document.createElement('option');
+      // Der Wert ist jetzt die MAC-Adresse
+      option.value = sensor.mac;
+      option.textContent = `${sensor.name} (${sensor.zimmer})`;
+      sensorSelect.appendChild(option);
+    });
+  } catch (error) {
+    console.error("Fehler beim Laden der Sensoren:", error);
+  }
+}
+
+    
+    // Pumpenstatus aktualisieren
+    async function updatePumpStatus() {
+      try {
+        const response = await fetch('/api/pump_status');
+        if (!response.ok) throw new Error(`HTTP-Fehler: ${response.status}`);
+        const data = await response.json();
+        document.getElementById("pumpStatus").innerText = data.status;
+      } catch (error) {
+        console.error("Fehler beim Abrufen des Pumpenstatus:", error);
+        document.getElementById("pumpStatus").innerText = "Pumpenstatus konnte nicht abgerufen werden.";
+      }
+    }
+    
+    // Diagramme aktualisieren
+    async function updateChart() {
+      const sensor = document.getElementById("sensor").value;
+      const zeitraum = document.getElementById("zeitraum").value;
+      try {
+        const response = await fetch(`/api/sensordaten?sensor=${encodeURIComponent(sensor)}&zeitraum=${encodeURIComponent(zeitraum)}`);
+        if (!response.ok) throw new Error(`HTTP-Fehler: ${response.status}`);
+        const chartData = await response.json();
+        
+if (sensor === "Alle") {
+  let groups = {};
+  chartData.forEach(row => {
+    // Gruppiere anhand der eindeutigen MAC-Adresse
+    const key = row.sensor_mac;
+    if (!groups[key]) {
+      groups[key] = {
+        data: [],
+        // Speichere den angezeigten Namen (z.B. "Pachira") und den MAC
+        sensor_name: row.sensor_name,
+        zimmer: row.zimmer
+      };
+    }
+    groups[key].data.push(row);
+  });
+  
+  let moistureDatasets = [];
+  let temperatureDatasets = [];
+  let lightDatasets = [];
+  let conductivityDatasets = [];
+  let batteryDatasets = [];
+  const colorPalette = ["#007bff", "#dc3545", "#28a745", "#fd7e14", "#6f42c1", "#343a40", "#17a2b8", "#ffc107"];
+  let index = 0;
+  for (const sensorMac in groups) {
+    const group = groups[sensorMac].data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    let color = colorPalette[index % colorPalette.length];
+    index++;
+    // Label: Sensorname (MAC)
+    const label = `${groups[sensorMac].sensor_name} (${groups[sensorMac].zimmer})`;
+    moistureDatasets.push({
+      label: label,
+      data: group.map(row => ({ x: new Date(row.timestamp), y: row.moisture })),
+      borderColor: color,
+      backgroundColor: hexToRGBA(color, 0.2),
+      fill: false,
+      tension: 0.1
+    });
+    temperatureDatasets.push({
+      label: label,
+      data: group.map(row => ({ x: new Date(row.timestamp), y: row.temperature })),
+      borderColor: color,
+      backgroundColor: hexToRGBA(color, 0.2),
+      fill: false,
+      tension: 0.1
+    });
+    lightDatasets.push({
+      label: label,
+      data: group.map(row => ({ x: new Date(row.timestamp), y: row.light })),
+      borderColor: color,
+      backgroundColor: hexToRGBA(color, 0.2),
+      fill: false,
+      tension: 0.1
+    });
+    conductivityDatasets.push({
+      label: label,
+      data: group.map(row => ({ x: new Date(row.timestamp), y: row.conductivity })),
+      borderColor: color,
+      backgroundColor: hexToRGBA(color, 0.2),
+      fill: false,
+      tension: 0.1
+    });
+    batteryDatasets.push({
+      label: label,
+      data: group.map(row => ({ x: new Date(row.timestamp), y: row.battery })),
+      borderColor: color,
+      backgroundColor: hexToRGBA(color, 0.2),
+      fill: false,
+      tension: 0.1
+    });
+  }
+  renderMultiDatasetChart("moistureChart", moistureDatasets, "Feuchtigkeit (%)");
+  renderMultiDatasetChart("temperatureChart", temperatureDatasets, "Temperatur (°C)");
+  renderMultiDatasetChart("lightChart", lightDatasets, "Licht (lux)");
+  renderMultiDatasetChart("conductivityChart", conductivityDatasets, "Fruchtbarkeit (µS/cm)");
+  renderMultiDatasetChart("batteryChart", batteryDatasets, "Batterie (%)");
+} else {
+	      let label = sensor; // Fallback: Wenn kein Datensatz vorhanden ist
+      if (chartData.length > 0) {
+        // Ersetze den Label durch "Sensorname (Zimmer)" aus dem ersten Datensatz
+        label = `${chartData[0].sensor_name} (${chartData[0].zimmer})`;
+      }
+  // Einzelner Sensor: Unverändert, da hier bereits nach MAC gefiltert wird
+  let moistureData = chartData.map(row => ({ x: new Date(row.timestamp), y: row.moisture }));
+  let temperatureData = chartData.map(row => ({ x: new Date(row.timestamp), y: row.temperature }));
+  let lightData = chartData.map(row => ({ x: new Date(row.timestamp), y: row.light }));
+  let conductivityData = chartData.map(row => ({ x: new Date(row.timestamp), y: row.conductivity }));
+  let batteryData = chartData.map(row => ({ x: new Date(row.timestamp), y: row.battery }));
+  renderMultiDatasetChart("moistureChart", [{
+    label: label,
+    data: moistureData,
+    borderColor: "#007bff",
+    backgroundColor: hexToRGBA("#007bff", 0.2),
+    fill: false,
+    tension: 0.1
+  }], "Feuchtigkeit (%)");
+  renderMultiDatasetChart("temperatureChart", [{
+    label: label,
+    data: temperatureData,
+    borderColor: "#dc3545",
+    backgroundColor: hexToRGBA("#dc3545", 0.2),
+    fill: false,
+    tension: 0.1
+  }], "Temperatur (°C)");
+  renderMultiDatasetChart("lightChart", [{
+    label: label,
+    data: lightData,
+    borderColor: "#fd7e14",
+    backgroundColor: hexToRGBA("#fd7e14", 0.2),
+    fill: false,
+    tension: 0.1
+  }], "Licht (lux)");
+  renderMultiDatasetChart("conductivityChart", [{
+    label: label,
+    data: conductivityData,
+    borderColor: "#28a745",
+    backgroundColor: hexToRGBA("#28a745", 0.2),
+    fill: false,
+    tension: 0.1
+  }], "Fruchtbarkeit (µS/cm)");
+  renderMultiDatasetChart("batteryChart", [{
+    label: label,
+    data: batteryData,
+    borderColor: "#6f42c1",
+    backgroundColor: hexToRGBA("#6f42c1", 0.2),
+    fill: false,
+    tension: 0.1
+  }], "Batterie (%)");
+}
+
+      } catch (error) {
+        console.error("Fehler beim Aktualisieren des Charts:", error);
+      }
+    }
+    
+    // Funktion zur Erstellung eines Chart.js-Diagramms
+    function renderMultiDatasetChart(canvasId, datasets, yAxisLabel) {
+      const ctx = document.getElementById(canvasId).getContext("2d");
+      if (window[canvasId + "Chart"]) {
+        window[canvasId + "Chart"].destroy();
+      }
+      window[canvasId + "Chart"] = new Chart(ctx, {
+        type: "line",
+        data: {
+          datasets: datasets
+        },
+        options: {
+          responsive: true,
+          elements: {
+            line: { spanGaps: true }
+          },
+          scales: {
+            x: {
+              type: "time",
+              time: {
+                unit: "minute",
+                stepSize: 10,
+                displayFormats: { minute: "HH:mm" }
+              },
+              title: { display: true, text: "Zeit (HH:mm)" }
+            },
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: yAxisLabel }
+            }
+          },
+          plugins: {
+            legend: { display: true },
+            tooltip: { mode: "index", intersect: false }
+          }
+        }
+      });
+    }
+    
+    // Tabelle sortieren
+    function sortTable(tableId, columnIndex) {
+      const table = document.getElementById(tableId);
+      const tbody = table.tBodies[0];
+      const rows = Array.from(tbody.rows);
+      const header = table.tHead.rows[0].cells[columnIndex];
+      const currentOrder = header.getAttribute("data-order") || "asc";
+      const ascending = currentOrder === "asc";
+      header.setAttribute("data-order", ascending ? "desc" : "asc");
+      
+      rows.sort((a, b) => {
+        let cellA = a.cells[columnIndex].textContent.trim();
+        let cellB = b.cells[columnIndex].textContent.trim();
+        const numA = parseFloat(cellA.replace(',', '.'));
+        const numB = parseFloat(cellB.replace(',', '.'));
+        if (!isNaN(numA) && !isNaN(numB)) {
+          return ascending ? numA - numB : numB - numA;
+        }
+        if (cellA < cellB) return ascending ? -1 : 1;
+        if (cellA > cellB) return ascending ? 1 : -1;
+        return 0;
+      });
+      
+      while (tbody.firstChild) {
+        tbody.removeChild(tbody.firstChild);
+      }
+      rows.forEach(row => tbody.appendChild(row));
+    }
+    
+    // Füge Sortier-Eventlistener zu den Tabellenkopf-Zellen hinzu
+    function addTableSorting() {
+      const table = document.getElementById("latest-table");
+      const headers = table.tHead.rows[0].cells;
+      for (let i = 0; i < headers.length; i++) {
+        headers[i].addEventListener("click", () => sortTable("latest-table", i));
+      }
+    }
+    
+    // Dashboard aktualisieren: Tabelle, Diagramme und Sortierung
+    async function updateDashboard() {
+      const sensor = document.getElementById("sensor").value;
+      const zeitraum = document.getElementById("zeitraum").value;
+      
+        document.getElementById("pumpStatusSection").style.display = "block";
+        updatePumpStatus();
+
+      
+      const tableBody = document.querySelector("#latest-table tbody");
+      tableBody.innerHTML = "";
+      
+      if (sensor === "Alle") {
+        try {
+          const response = await fetch(`/api/letzte-messwerte?sensor=Alle`);
+          if (!response.ok) throw new Error(`HTTP-Fehler: ${response.status}`);
+          const dataArray = await response.json();
+          if (Array.isArray(dataArray) && dataArray.length > 0) {
+            dataArray.forEach(data => {
+              tableBody.innerHTML += `
+                <tr>
+                  <td>${data.sensor_name || "N/A"}</td>
+                  <td>${data.zimmer || "N/A"}</td>
+                  <td>${data.moisture || "N/A"}</td>
+                  <td>${data.temperature || "N/A"}</td>
+                  <td>${data.light || "N/A"}</td>
+                  <td>${data.conductivity || "N/A"}</td>
+                  <td>${data.battery || "N/A"}</td>
+                  <td>${data.timestamp_berlin || "N/A"}</td>
+                  <td>${data.data_count || "N/A"}</td>
+                </tr>
+              `;
+            });
+          } else {
+            tableBody.innerHTML = "<tr><td colspan='9'>Keine Daten verfügbar</td></tr>";
+          }
+        } catch (error) {
+          console.error("Fehler beim Abrufen der Messwerte für alle Sensoren:", error);
+          tableBody.innerHTML = "<tr><td colspan='9'>Fehler beim Abrufen der Messwerte</td></tr>";
+        }
+      } else {
+        try {
+          const response = await fetch(`/api/letzte-messwerte?sensor=${encodeURIComponent(sensor)}`);
+          if (!response.ok) throw new Error(`HTTP-Fehler: ${response.status}`);
+          const data = await response.json();
+          if (data && Object.keys(data).length > 0) {
+            tableBody.innerHTML = `
+              <tr>
+                <td>${data.sensor_name || "N/A"}</td>
+                <td>${data.zimmer || "N/A"}</td>
+                <td>${data.moisture || "N/A"}</td>
+                <td>${data.temperature || "N/A"}</td>
+                <td>${data.light || "N/A"}</td>
+                <td>${data.conductivity || "N/A"}</td>
+                <td>${data.battery || "N/A"}</td>
+                <td>${data.timestamp_berlin || "N/A"}</td>
+                <td>${data.data_count || "N/A"}</td>
+              </tr>
+            `;
+          } else {
+            tableBody.innerHTML = "<tr><td colspan='9'>Keine Daten verfügbar</td></tr>";
+          }
+        } catch (error) {
+          console.error("Fehler beim Abrufen der letzten Messwerte:", error);
+          tableBody.innerHTML = "<tr><td colspan='9'>Fehler beim Abrufen der Messwerte</td></tr>";
+        }
+      }
+      
+      await updateChart();
+      addTableSorting();
+    }
+    
+    function addEventListeners() {
+      document.getElementById("sensor").addEventListener("change", updateDashboard);
+      document.getElementById("zeitraum").addEventListener("change", updateDashboard);
+    }
+    
+    async function initDashboard() {
+      await loadSensors();
+      addEventListeners();
+      await updateDashboard();
+    }
+    
+    await initDashboard();
+  </script>
+</body>
+</html>
